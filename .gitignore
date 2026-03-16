@@ -1,0 +1,5 @@
+# Ignora las fotos que subas en SmartChef pero mantén la carpeta
+uploads/*
+!uploads/.gitkeep
+
+.vscode/
