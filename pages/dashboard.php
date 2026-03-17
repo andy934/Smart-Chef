@@ -1,3 +1,9 @@
+<?php
+// Proteger esta página: redirige al login si no hay sesión
+require_once '../includes/auth.php';
+requireLoginPage();
+$nombre = htmlspecialchars($_SESSION['usuario_nombre']);
+?>
 <!DOCTYPE html>
 <html lang="es">
 
@@ -162,12 +168,7 @@
 
 <body>
 
-    <?php
-    // Proteger esta página: redirige al login si no hay sesión
-    require_once '../includes/auth.php';
-    requireLoginPage();
-    $nombre = htmlspecialchars($_SESSION['usuario_nombre']);
-    ?>
+
 
     <!-- Navbar -->
     <nav class="navbar d-flex justify-content-between align-items-center">

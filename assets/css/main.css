@@ -1,0 +1,82 @@
+/* ============================================================
+   SmartChef — Estilos globales
+   Archivo: assets/css/main.css
+   Se incluye en TODAS las páginas del proyecto.
+   ============================================================ */
+
+/* ── Variables de diseño ── */
+:root {
+  --brand:      #E85D2F;
+  --brand-dark: #C44A1F;
+  --cream:      #FDF8F3;
+  --ink:        #1A1208;
+  --muted:      #8C7B6B;
+  --border:     #EAE0D5;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background-color: var(--cream);
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+/* ── Botón principal (usado en varias páginas) ── */
+.btn-brand {
+  display: inline-block;
+  padding: .85rem 2rem;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .2s, transform .1s;
+}
+
+.btn-brand:hover  { background: var(--brand-dark); color: #fff; }
+.btn-brand:active { transform: scale(.98); }
+.btn-brand:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ── Spinner de carga (dentro de botones) ── */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  vertical-align: middle;
+  margin-right: .4rem;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Alertas reutilizables ── */
+.alert-box {
+  border-radius: 10px;
+  padding: .85rem 1rem;
+  font-size: .9rem;
+  margin-bottom: 1.25rem;
+  display: none;
+}
+
+.alert-error   { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+.alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+.alert-error ul { margin: .4rem 0 0 1rem; }
+
+/* ── Animación de entrada ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
