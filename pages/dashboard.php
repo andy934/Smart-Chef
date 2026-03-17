@@ -21,7 +21,6 @@ $nombre = htmlspecialchars($_SESSION['usuario_nombre']);
     <?php require_once '../includes/navbar.php'; ?>
 
     <div class="hero">
-        <span class="sprint-badge">Sprint 2 en progreso 🚀</span>
         <h2>¡Bienvenido, <?= $nombre ?>!</h2>
         <p>¿Qué quieres hacer hoy?</p>
         <a href="crear-receta.php" class="btn-brand">+ Nueva receta</a>
