@@ -18,27 +18,22 @@ $nombre = htmlspecialchars($_SESSION['usuario_nombre']);
 
 <body>
 
-    <nav class="navbar d-flex justify-content-between align-items-center">
-        <a class="navbar-brand" href="dashboard.php">🍳 SmartChef</a>
-        <div class="d-flex align-items-center gap-3">
-            <span class="nav-user">Hola, <strong><?= $nombre ?></strong></span>
-            <a href="../api/auth/logout.php" class="btn-logout">Cerrar sesión</a>
-        </div>
-    </nav>
+    <?php require_once '../includes/navbar.php'; ?>
 
     <div class="hero">
+        <span class="sprint-badge">Sprint 2 en progreso 🚀</span>
         <h2>¡Bienvenido, <?= $nombre ?>!</h2>
         <p>¿Qué quieres hacer hoy?</p>
-        <a href="#" class="btn-brand">+ Nueva receta</a>
+        <a href="crear-receta.php" class="btn-brand">+ Nueva receta</a>
     </div>
 
     <div class="quick-cards">
-        <a href="#" class="qcard">
+        <a href="mis-recetas.php" class="qcard">
             <span class="qcard-icon">📖</span>
             <h3>Mis recetas</h3>
             <p>Administra las recetas que has creado</p>
         </a>
-        <a href="#" class="qcard">
+        <a href="explorar.php" class="qcard">
             <span class="qcard-icon">🔍</span>
             <h3>Explorar</h3>
             <p>Descubre recetas de otros usuarios</p>
