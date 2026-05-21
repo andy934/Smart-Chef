@@ -23,25 +23,27 @@ function navLink($href, $label, $actual)
     </a>
 
     <!-- Búsqueda rápida en navbar -->
-    <form action="buscar.php" method="GET"
-        style="display:flex; align-items:center; gap:.4rem; flex:1; max-width:360px;">
-        <input type="text" name="q" placeholder="Buscar recetas…"
-            style="flex:1; border:1.5px solid var(--border); border-radius:50px;
+    <?php if (basename($_SERVER['PHP_SELF']) !== 'buscar.php') { ?>
+        <form action="buscar.php" method="GET"
+            style="display:flex; align-items:center; gap:.4rem; flex:1; max-width:360px;">
+            <input type="text" name="q" placeholder="Buscar recetas…"
+                style="flex:1; border:1.5px solid var(--border); border-radius:50px;
                   padding:.4rem 1rem; font-family:'DM Sans',sans-serif; font-size:.85rem;
                   color:var(--ink); background:var(--cream); outline:none;
                   transition:border-color .2s;"
-            onfocus="this.style.borderColor='var(--brand)'"
-            onblur="this.style.borderColor='var(--border)'">
-        <button type="submit"
-            style="background:var(--brand); border:none; border-radius:50px;
+                onfocus="this.style.borderColor='var(--brand)'"
+                onblur="this.style.borderColor='var(--border)'">
+            <button type="submit"
+                style="background:var(--brand); border:none; border-radius:50px;
                    width:32px; height:32px; cursor:pointer; font-size:.85rem;
                    display:flex; align-items:center; justify-content:center;">
-            🔍
-        </button>
-    </form>
+                🔍
+            </button>
+        </form>
+    <?php } ?>
 
     <div class="d-flex align-items-center gap-3">
-        <?= navLink('explorar.php',   'Explorar',    $paginaActual) ?>
+        <?= navLink('explorar.php', 'Explorar', $paginaActual) ?>
 
         <?php if ($logueado): ?>
             <?= navLink('mis-recetas.php', 'Mis recetas', $paginaActual) ?>

@@ -1,5 +1,7 @@
 <?php
 // Cualquier usuario puede ver recetas (sin login)
+// Se incluye auth.php para iniciar sesión correctamente antes del navbar
+require_once '../includes/auth.php';
 require_once '../includes/db.php';
 
 // Obtener todas las recetas con nombre del autor

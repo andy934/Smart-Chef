@@ -1,4 +1,6 @@
 <?php
+// ✅ session_start() siempre al inicio, antes de cualquier output o lógica
+session_start();
 require_once '../includes/db.php';
 
 $id = (int)($_GET['id'] ?? 0);
@@ -26,7 +28,6 @@ $stmtIng->execute([$id]);
 $ingredientes = $stmtIng->fetchAll();
 
 // Ver si el usuario está logueado y es el autor
-session_start();
 $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (int)$receta['usuario_id'];
 ?>
 <!DOCTYPE html>

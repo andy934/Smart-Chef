@@ -26,6 +26,86 @@ $recetas = $stmt->fetchAll();
     <link href="../assets/css/main.css" rel="stylesheet">
     <link href="../assets/css/dashboard.css" rel="stylesheet">
     <link href="../assets/css/recetas.css" rel="stylesheet">
+    <style>
+        /* Fix: el overlay ocupa toda la pantalla y centra el modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(26, 18, 8, .5);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex !important;
+        }
+
+        .modal-box {
+            background: #fff;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 380px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(26, 18, 8, .15);
+        }
+
+        .modal-box h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            margin-bottom: .5rem;
+            color: var(--ink);
+        }
+
+        .modal-box p {
+            font-size: .9rem;
+            color: var(--muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: .75rem;
+        }
+
+        .btn-cancel {
+            flex: 1;
+            padding: .75rem;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            background: #fff;
+            color: var(--muted);
+            font-family: 'DM Sans', sans-serif;
+            font-size: .9rem;
+            cursor: pointer;
+            transition: border-color .2s, color .2s;
+        }
+
+        .btn-cancel:hover {
+            border-color: var(--brand);
+            color: var(--brand);
+        }
+
+        .btn-confirm-delete {
+            flex: 1;
+            padding: .75rem;
+            background: #dc2626;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .2s;
+        }
+
+        .btn-confirm-delete:hover {
+            background: #b91c1c;
+        }
+    </style>
 </head>
 
 <body>
@@ -69,7 +149,8 @@ $recetas = $stmt->fetchAll();
                     </a>
                     <div class="recipe-card-actions">
                         <a href="editar-receta.php?id=<?= $r['id'] ?>" class="btn-edit">✏️ Editar</a>
-                        <button class="btn-delete" onclick="confirmarEliminar(<?= $r['id'] ?>, '<?= htmlspecialchars(addslashes($r['titulo'])) ?>')">
+                        <button class="btn-delete"
+                            onclick="confirmarEliminar(<?= (int)$r['id'] ?>, '<?= htmlspecialchars(addslashes($r['titulo'])) ?>')">
                             🗑️ Eliminar
                         </button>
                     </div>
@@ -78,21 +159,21 @@ $recetas = $stmt->fetchAll();
         <?php endif; ?>
     </div>
 
-    <!-- Modal de confirmación de eliminación -->
+    <!-- Modal — fuera del grid para que el z-index funcione bien -->
     <div class="modal-overlay" id="modalEliminar">
         <div class="modal-box">
             <h3>¿Eliminar receta?</h3>
             <p id="modalMensaje">Esta acción no se puede deshacer.</p>
             <div class="modal-actions">
                 <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
-                <button class="btn-confirm-delete" id="btnConfirmarEliminar">Eliminar</button>
+                <button class="btn-confirm-delete" id="btnConfirmarEliminar">Sí, eliminar</button>
             </div>
         </div>
     </div>
 
-    <!-- Alerta flotante -->
-    <div class="alert-box alert-success" id="alertOk" style="position:fixed;bottom:1.5rem;right:1.5rem;max-width:300px;z-index:200"></div>
-    <div class="alert-box alert-error" id="alertErr" style="position:fixed;bottom:1.5rem;right:1.5rem;max-width:300px;z-index:200"></div>
+    <!-- Alertas flotantes -->
+    <div id="alertOk" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;max-width:300px;z-index:1000;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;border-radius:10px;padding:.85rem 1rem;font-size:.9rem;"></div>
+    <div id="alertErr" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;max-width:300px;z-index:1000;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:.85rem 1rem;font-size:.9rem;"></div>
 
     <script>
         let recetaIdAEliminar = null;
@@ -109,13 +190,20 @@ $recetas = $stmt->fetchAll();
             recetaIdAEliminar = null;
         }
 
+        // Cerrar modal al hacer clic fuera del box
+        document.getElementById('modalEliminar').addEventListener('click', function(e) {
+            if (e.target === this) cerrarModal();
+        });
+
         document.getElementById('btnConfirmarEliminar').addEventListener('click', async () => {
             if (!recetaIdAEliminar) return;
+
+            const id = recetaIdAEliminar;
             cerrarModal();
 
             try {
                 const fd = new FormData();
-                fd.append('receta_id', recetaIdAEliminar);
+                fd.append('receta_id', id);
                 const res = await fetch('../api/recetas/eliminar.php', {
                     method: 'POST',
                     body: fd
@@ -123,7 +211,7 @@ $recetas = $stmt->fetchAll();
                 const data = await res.json();
 
                 if (res.ok) {
-                    mostrarAlerta('alertOk', data.mensaje);
+                    mostrarAlerta('alertOk', data.mensaje || 'Receta eliminada.');
                     setTimeout(() => location.reload(), 1200);
                 } else {
                     mostrarAlerta('alertErr', data.error || 'Error al eliminar.');
