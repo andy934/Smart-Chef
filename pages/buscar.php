@@ -1,6 +1,11 @@
 <?php
 require_once '../includes/db.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
+
+// Cargar etiquetas para los filtros
+$etiquetas = $pdo->query('SELECT id, nombre, tipo FROM etiquetas ORDER BY tipo, nombre')->fetchAll();
+$dietas    = array_filter($etiquetas, fn($e) => $e['tipo'] === 'dieta');
+$alergenos = array_filter($etiquetas, fn($e) => $e['tipo'] === 'alergeno');
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -76,7 +81,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
             background: var(--brand-dark);
         }
 
-        /* Dropdown de sugerencias */
+        /* Sugerencias */
         .suggestions-box {
             position: absolute;
             top: calc(100% + .4rem);
@@ -111,6 +116,79 @@ if (session_status() === PHP_SESSION_NONE) session_start();
             color: var(--muted);
         }
 
+        /* ── Filtros de etiquetas ── */
+        .filtros-wrap {
+            max-width: 860px;
+            margin: 1.25rem auto 0;
+            padding: 0 1rem;
+        }
+
+        .filtros-titulo {
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: .5rem;
+        }
+
+        .filtros-grupo {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
+            margin-bottom: .75rem;
+        }
+
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            padding: .35rem .85rem;
+            border-radius: 50px;
+            border: 1.5px solid var(--border);
+            background: #fff;
+            font-size: .8rem;
+            font-family: 'DM Sans', sans-serif;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all .2s;
+            user-select: none;
+        }
+
+        .tag-chip:hover {
+            border-color: var(--brand);
+            color: var(--brand);
+        }
+
+        .tag-chip.active-dieta {
+            background: #fff7ed;
+            border-color: var(--brand);
+            color: var(--brand);
+            font-weight: 500;
+        }
+
+        .tag-chip.active-alergeno {
+            background: #fef2f2;
+            border-color: #dc2626;
+            color: #dc2626;
+            font-weight: 500;
+        }
+
+        .filtros-clear {
+            font-size: .8rem;
+            color: var(--muted);
+            cursor: pointer;
+            text-decoration: underline;
+            background: none;
+            border: none;
+            padding: 0;
+            display: none;
+        }
+
+        .filtros-clear:hover {
+            color: var(--brand);
+        }
+
         /* Resultados */
         .results-header {
             max-width: 1100px;
@@ -124,7 +202,6 @@ if (session_status() === PHP_SESSION_NONE) session_start();
             color: var(--ink);
         }
 
-        /* Estado vacío de búsqueda */
         .no-results {
             text-align: center;
             padding: 3rem 2rem;
@@ -136,6 +213,33 @@ if (session_status() === PHP_SESSION_NONE) session_start();
             font-size: 2.5rem;
             margin-bottom: .75rem;
             display: block;
+        }
+
+        /* Chips de etiquetas en tarjetas */
+        .card-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .3rem;
+            padding: 0 1.1rem .75rem;
+        }
+
+        .card-tag {
+            font-size: .7rem;
+            padding: .2rem .6rem;
+            border-radius: 50px;
+            font-weight: 500;
+        }
+
+        .card-tag-dieta {
+            background: #fff7ed;
+            color: var(--brand);
+            border: 1px solid #fdd5c4;
+        }
+
+        .card-tag-alergeno {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
         }
     </style>
 </head>
@@ -152,16 +256,46 @@ if (session_status() === PHP_SESSION_NONE) session_start();
             <button class="search-btn" id="searchBtn" title="Buscar">🔍</button>
             <div class="suggestions-box" id="suggestionsBox"></div>
         </div>
+
+        <!-- Filtros de etiquetas -->
+        <div class="filtros-wrap">
+            <?php if (!empty($dietas)): ?>
+                <div class="filtros-titulo">🥗 Dieta</div>
+                <div class="filtros-grupo" id="grupoDieta">
+                    <?php foreach ($dietas as $e): ?>
+                        <span class="tag-chip" data-id="<?= $e['id'] ?>" data-tipo="dieta"
+                            onclick="toggleTag(this)">
+                            <?= htmlspecialchars($e['nombre']) ?>
+                        </span>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!empty($alergenos)): ?>
+                <div class="filtros-titulo">⚠️ Alérgenos</div>
+                <div class="filtros-grupo" id="grupoAlergeno">
+                    <?php foreach ($alergenos as $e): ?>
+                        <span class="tag-chip" data-id="<?= $e['id'] ?>" data-tipo="alergeno"
+                            onclick="toggleTag(this)">
+                            <?= htmlspecialchars($e['nombre']) ?>
+                        </span>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <button class="filtros-clear" id="btnLimpiarFiltros" onclick="limpiarFiltros()">
+                × Limpiar filtros
+            </button>
+        </div>
     </div>
 
     <div class="results-header" id="resultsHeader" style="display:none"></div>
 
     <div class="recipes-grid" id="resultsGrid" style="margin-top:1rem;">
-        <!-- Estado inicial -->
         <div class="empty-state" id="initialState">
             <span class="empty-state-icon">🔍</span>
             <h3>Escribe algo para buscar</h3>
-            <p>Prueba con "pollo", "pasta" o el nombre de una receta</p>
+            <p>Prueba con "pollo", "pasta" o filtra por etiquetas</p>
         </div>
     </div>
 
@@ -172,19 +306,42 @@ if (session_status() === PHP_SESSION_NONE) session_start();
         const resultsGrid = document.getElementById('resultsGrid');
         const resultsHeader = document.getElementById('resultsHeader');
         const initialState = document.getElementById('initialState');
+        const btnLimpiar = document.getElementById('btnLimpiarFiltros');
 
         let debounceTimer = null;
+        let etiquetasActivas = new Set(); // ids seleccionados
 
-        // ── Sugerencias de ingredientes mientras escribe ────────────
+        // ── Toggle etiqueta ──────────────────────────────────────
+        function toggleTag(chip) {
+            const id = chip.dataset.id;
+            const tipo = chip.dataset.tipo;
+            if (etiquetasActivas.has(id)) {
+                etiquetasActivas.delete(id);
+                chip.classList.remove(`active-${tipo}`);
+            } else {
+                etiquetasActivas.add(id);
+                chip.classList.add(`active-${tipo}`);
+            }
+            btnLimpiar.style.display = etiquetasActivas.size ? 'inline' : 'none';
+            buscar();
+        }
+
+        function limpiarFiltros() {
+            etiquetasActivas.clear();
+            document.querySelectorAll('.tag-chip').forEach(c =>
+                c.classList.remove('active-dieta', 'active-alergeno'));
+            btnLimpiar.style.display = 'none';
+            buscar();
+        }
+
+        // ── Sugerencias ───────────────────────────────────────────
         searchInput.addEventListener('input', () => {
             const q = searchInput.value.trim();
             clearTimeout(debounceTimer);
-
             if (q.length < 2) {
                 suggestionsBox.style.display = 'none';
                 return;
             }
-
             debounceTimer = setTimeout(() => cargarSugerencias(q), 250);
         });
 
@@ -192,16 +349,14 @@ if (session_status() === PHP_SESSION_NONE) session_start();
             try {
                 const res = await fetch(`../api/recetas/sugerir-ingredientes.php?q=${encodeURIComponent(q)}`);
                 const data = await res.json();
-
                 if (!data.length) {
                     suggestionsBox.style.display = 'none';
                     return;
                 }
-
                 suggestionsBox.innerHTML = data.map(s =>
                     `<div class="suggestion-item" onclick="usarSugerencia('${s.replace(/'/g,"\\'")}')">
-           <span class="sug-icon">🥕</span> ${s}
-         </div>`
+                        <span class="sug-icon">🥕</span> ${s}
+                     </div>`
                 ).join('');
                 suggestionsBox.style.display = 'block';
             } catch {
@@ -212,92 +367,109 @@ if (session_status() === PHP_SESSION_NONE) session_start();
         function usarSugerencia(nombre) {
             searchInput.value = nombre;
             suggestionsBox.style.display = 'none';
-            buscar(nombre);
+            buscar();
         }
 
-        // Cerrar sugerencias al hacer clic fuera
         document.addEventListener('click', e => {
-            if (!e.target.closest('.search-wrap')) {
-                suggestionsBox.style.display = 'none';
-            }
+            if (!e.target.closest('.search-wrap')) suggestionsBox.style.display = 'none';
         });
 
-        // ── Buscar al presionar Enter o el botón ───────────────────
         searchInput.addEventListener('keydown', e => {
             if (e.key === 'Enter') {
                 suggestionsBox.style.display = 'none';
-                buscar(searchInput.value.trim());
+                buscar();
             }
         });
-
         searchBtn.addEventListener('click', () => {
             suggestionsBox.style.display = 'none';
-            buscar(searchInput.value.trim());
+            buscar();
         });
 
-        // ── Función principal de búsqueda ──────────────────────────
-        async function buscar(q) {
-            if (!q) return;
+        // ── Búsqueda principal ────────────────────────────────────
+        async function buscar() {
+            const q = searchInput.value.trim();
+            if (!q && etiquetasActivas.size === 0) {
+                resultsGrid.innerHTML = `<div class="empty-state" id="initialState">
+                    <span class="empty-state-icon">🔍</span>
+                    <h3>Escribe algo para buscar</h3>
+                    <p>Prueba con "pollo", "pasta" o filtra por etiquetas</p>
+                </div>`;
+                resultsHeader.style.display = 'none';
+                return;
+            }
 
-            // Mostrar spinner
-            initialState.style.display = 'none';
+            initialState && (initialState.style.display = 'none');
             resultsGrid.innerHTML = `
-      <div style="grid-column:1/-1; text-align:center; padding:3rem; color:var(--muted);">
-        <span class="spinner" style="border-color:rgba(26,18,8,.2); border-top-color:var(--brand); width:28px; height:28px;"></span>
-        <p style="margin-top:1rem;">Buscando...</p>
-      </div>`;
+                <div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--muted);">
+                    <span class="spinner" style="border-color:rgba(26,18,8,.2);border-top-color:var(--brand);width:28px;height:28px;"></span>
+                    <p style="margin-top:1rem;">Buscando...</p>
+                </div>`;
             resultsHeader.style.display = 'none';
 
             try {
-                const res = await fetch(`../api/recetas/buscar.php?q=${encodeURIComponent(q)}`);
+                // Construir URL con etiquetas
+                let url = `../api/recetas/buscar.php?q=${encodeURIComponent(q)}`;
+                etiquetasActivas.forEach(id => url += `&etiquetas[]=${id}`);
+
+                const res = await fetch(url);
                 const recetas = await res.json();
 
-                // Header con conteo
-                resultsHeader.innerHTML =
-                    `Resultados para <strong>"${q}"</strong>: ${recetas.length} receta${recetas.length !== 1 ? 's' : ''}`;
+                // Header de resultados
+                let headerTxt = '';
+                if (q) headerTxt += `Resultados para <strong>"${q}"</strong>`;
+                if (etiquetasActivas.size) {
+                    headerTxt += (q ? ' · ' : '') + `${etiquetasActivas.size} filtro${etiquetasActivas.size > 1 ? 's' : ''} activo${etiquetasActivas.size > 1 ? 's' : ''}`;
+                }
+                headerTxt += `: ${recetas.length} receta${recetas.length !== 1 ? 's' : ''}`;
+                resultsHeader.innerHTML = headerTxt;
                 resultsHeader.style.display = 'block';
 
                 if (!recetas.length) {
                     resultsGrid.innerHTML = `
-          <div class="no-results">
-            <span class="no-results-icon">😔</span>
-            <h3>Sin resultados</h3>
-            <p>No encontramos recetas con "${q}". Prueba con otro término.</p>
-          </div>`;
+                        <div class="no-results">
+                            <span class="no-results-icon">😔</span>
+                            <h3>Sin resultados</h3>
+                            <p>Prueba con otro término o ajusta los filtros.</p>
+                        </div>`;
                     return;
                 }
 
-                // Renderizar tarjetas
-                resultsGrid.innerHTML = recetas.map(r => `
-        <a href="detalle.php?id=${r.id}" class="recipe-card">
-          ${r.imagen_ruta
-            ? `<img src="../${r.imagen_ruta}" alt="${r.titulo}" class="recipe-card-img">`
-            : `<div class="recipe-card-placeholder">🍳</div>`}
-          <div class="recipe-card-body">
-            <div class="recipe-card-title">${r.titulo}</div>
-            <div class="recipe-card-meta">
-              <span>👤 ${r.autor}</span>
-              <span class="recipe-card-time">⏱ ${r.tiempo_min} min</span>
-            </div>
-          </div>
-        </a>
-      `).join('');
+                resultsGrid.innerHTML = recetas.map(r => {
+                    const tags = (r.etiquetas || []).map(t =>
+                        `<span class="card-tag card-tag-${t.tipo}">${t.nombre}</span>`
+                    ).join('');
+
+                    return `
+                        <a href="detalle.php?id=${r.id}" class="recipe-card">
+                            ${r.imagen_ruta
+                                ? `<img src="../${r.imagen_ruta}" alt="${r.titulo}" class="recipe-card-img">`
+                                : `<div class="recipe-card-placeholder">🍳</div>`}
+                            <div class="recipe-card-body">
+                                <div class="recipe-card-title">${r.titulo}</div>
+                                <div class="recipe-card-meta">
+                                    <span>👤 ${r.autor}</span>
+                                    <span class="recipe-card-time">⏱ ${r.tiempo_min} min</span>
+                                </div>
+                            </div>
+                            ${tags ? `<div class="card-tags">${tags}</div>` : ''}
+                        </a>`;
+                }).join('');
 
             } catch {
                 resultsGrid.innerHTML = `
-        <div class="no-results">
-          <span class="no-results-icon">⚠️</span>
-          <h3>Error de conexión</h3>
-          <p>No se pudo realizar la búsqueda. Intenta de nuevo.</p>
-        </div>`;
+                    <div class="no-results">
+                        <span class="no-results-icon">⚠️</span>
+                        <h3>Error de conexión</h3>
+                        <p>No se pudo realizar la búsqueda. Intenta de nuevo.</p>
+                    </div>`;
             }
         }
 
-        // Si viene ?q= en la URL, ejecutar búsqueda automáticamente
+        // Si viene ?q= en la URL
         const params = new URLSearchParams(window.location.search);
         if (params.get('q')) {
             searchInput.value = params.get('q');
-            buscar(params.get('q'));
+            buscar();
         }
     </script>
 

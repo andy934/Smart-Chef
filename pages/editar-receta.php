@@ -18,6 +18,15 @@ $receta = $stmt->fetch();
 $stmtIng = $pdo->prepare('SELECT nombre, cantidad FROM ingredientes WHERE receta_id = ? ORDER BY id');
 $stmtIng->execute([$id]);
 $ingredientes = $stmtIng->fetchAll();
+
+// Cargar todas las etiquetas y cuáles ya tiene la receta
+$todasEtiquetas = $pdo->query('SELECT id, nombre, tipo FROM etiquetas ORDER BY tipo, nombre')->fetchAll();
+$dietas         = array_filter($todasEtiquetas, fn($e) => $e['tipo'] === 'dieta');
+$alergenos      = array_filter($todasEtiquetas, fn($e) => $e['tipo'] === 'alergeno');
+
+$stmtAsig = $pdo->prepare('SELECT etiqueta_id FROM receta_etiquetas WHERE receta_id = ?');
+$stmtAsig->execute([$id]);
+$asignadas = array_column($stmtAsig->fetchAll(), 'etiqueta_id');
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -73,6 +82,53 @@ $ingredientes = $stmtIng->fetchAll();
             margin-bottom: .75rem;
             display: block;
         }
+
+        /* Etiquetas */
+        .tags-grupo {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
+            margin-bottom: .5rem;
+        }
+
+        .tag-check {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            padding: .35rem .85rem;
+            border-radius: 50px;
+            border: 1.5px solid var(--border);
+            background: #fff;
+            font-size: .82rem;
+            font-family: 'DM Sans', sans-serif;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all .2s;
+            user-select: none;
+        }
+
+        .tag-check input {
+            display: none;
+        }
+
+        .tag-check:has(input:checked).dieta {
+            background: #fff7ed;
+            border-color: var(--brand);
+            color: var(--brand);
+            font-weight: 500;
+        }
+
+        .tag-check:has(input:checked).alergeno {
+            background: #fef2f2;
+            border-color: #dc2626;
+            color: #dc2626;
+            font-weight: 500;
+        }
+
+        .tag-check:hover {
+            border-color: var(--brand);
+            color: var(--brand);
+        }
     </style>
 </head>
 
@@ -106,9 +162,7 @@ $ingredientes = $stmtIng->fetchAll();
 
                 <p class="form-section-title">Ingredientes</p>
                 <div id="ingredientesContainer"></div>
-                <button type="button" class="btn-add-ing" onclick="agregarIngrediente()">
-                    + Agregar ingrediente
-                </button>
+                <button type="button" class="btn-add-ing" onclick="agregarIngrediente()">+ Agregar ingrediente</button>
 
                 <p class="form-section-title">Pasos de preparación</p>
                 <div class="mb-field">
@@ -116,19 +170,47 @@ $ingredientes = $stmtIng->fetchAll();
                     <textarea id="pasos" name="pasos" class="form-control" required><?= htmlspecialchars($receta['pasos']) ?></textarea>
                 </div>
 
-                <!-- ── SECCIÓN IMAGEN ── -->
+                <!-- ── Etiquetas ── -->
+                <p class="form-section-title">Etiquetas</p>
+
+                <?php if (!empty($dietas)): ?>
+                    <div class="mb-field">
+                        <label class="form-label">🥗 Dieta</label>
+                        <div class="tags-grupo">
+                            <?php foreach ($dietas as $e): ?>
+                                <label class="tag-check dieta">
+                                    <input type="checkbox" name="etiquetas[]" value="<?= $e['id'] ?>"
+                                        <?= in_array($e['id'], $asignadas) ? 'checked' : '' ?>>
+                                    <?= htmlspecialchars($e['nombre']) ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($alergenos)): ?>
+                    <div class="mb-field">
+                        <label class="form-label">⚠️ Alérgenos</label>
+                        <div class="tags-grupo">
+                            <?php foreach ($alergenos as $e): ?>
+                                <label class="tag-check alergeno">
+                                    <input type="checkbox" name="etiquetas[]" value="<?= $e['id'] ?>"
+                                        <?= in_array($e['id'], $asignadas) ? 'checked' : '' ?>>
+                                    <?= htmlspecialchars($e['nombre']) ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- ── Imagen ── -->
                 <p class="form-section-title">Imagen de la receta</p>
                 <div class="mb-field">
-
                     <?php if (!empty($receta['imagen_ruta'])): ?>
-                        <!-- Imagen actual -->
                         <div id="imagenActual">
-                            <img src="../<?= htmlspecialchars($receta['imagen_ruta']) ?>"
-                                alt="Imagen actual" class="img-actual">
+                            <img src="../<?= htmlspecialchars($receta['imagen_ruta']) ?>" alt="Imagen actual" class="img-actual">
                             <button type="button" class="btn-delete" style="padding:.45rem 1rem; font-size:.82rem;"
-                                onclick="eliminarImagenActual()">
-                                🗑️ Eliminar imagen actual
-                            </button>
+                                onclick="eliminarImagenActual()">🗑️ Eliminar imagen actual</button>
                         </div>
                         <div id="uploadNueva" style="display:none; margin-top:.75rem;">
                         <?php else: ?>
@@ -146,28 +228,23 @@ $ingredientes = $stmtIng->fetchAll();
                                 <img id="previewImg" src="" alt="Vista previa" class="img-actual" style="margin-bottom:0">
                                 <button type="button" onclick="quitarPreview()"
                                     style="position:absolute;top:.5rem;right:.5rem;background:#fff;
-                             border:1px solid var(--border);border-radius:6px;
-                             padding:.2rem .5rem;cursor:pointer;font-size:.8rem;color:#dc2626;">
+                                       border:1px solid var(--border);border-radius:6px;
+                                       padding:.2rem .5rem;cursor:pointer;font-size:.8rem;color:#dc2626;">
                                     × Quitar
                                 </button>
                             </div>
                             </div>
-
                         </div>
-                        <!-- ── FIN SECCIÓN IMAGEN ── -->
 
                         <div class="form-actions">
                             <a href="detalle.php?id=<?= $receta['id'] ?>" class="btn-secondary">Cancelar</a>
-                            <button type="submit" class="btn-brand-submit" id="btnGuardar">
-                                Guardar cambios
-                            </button>
+                            <button type="submit" class="btn-brand-submit" id="btnGuardar">Guardar cambios</button>
                         </div>
 
             </form>
         </div>
     </div>
 
-    <!-- Alerta flotante para eliminar imagen -->
     <div class="alert-box alert-success" id="alertFlotante"
         style="position:fixed;bottom:1.5rem;right:1.5rem;max-width:300px;z-index:200"></div>
 
@@ -175,17 +252,15 @@ $ingredientes = $stmtIng->fetchAll();
         const RECETA_ID = <?= $receta['id'] ?>;
         let contadorIng = 0;
 
-        // ── Ingredientes ─────────────────────────────────────────
         function agregarIngrediente(nombre = '', cantidad = '') {
             const idx = contadorIng++;
             const div = document.createElement('div');
             div.className = 'ingredient-row';
             div.id = `ing-${idx}`;
             div.innerHTML = `
-      <input type="text" name="ingredientes[${idx}][nombre]"   class="form-control" placeholder="Ingrediente" value="${nombre}">
-      <input type="text" name="ingredientes[${idx}][cantidad]" class="form-control" placeholder="Cantidad"    value="${cantidad}">
-      <button type="button" class="btn-remove-ing" onclick="document.getElementById('ing-${idx}').remove()">×</button>
-    `;
+                <input type="text" name="ingredientes[${idx}][nombre]"   class="form-control" placeholder="Ingrediente" value="${nombre}">
+                <input type="text" name="ingredientes[${idx}][cantidad]" class="form-control" placeholder="Cantidad"    value="${cantidad}">
+                <button type="button" class="btn-remove-ing" onclick="document.getElementById('ing-${idx}').remove()">×</button>`;
             document.getElementById('ingredientesContainer').appendChild(div);
         }
 
@@ -197,7 +272,6 @@ $ingredientes = $stmtIng->fetchAll();
             agregarIngrediente();
         }
 
-        // ── Imagen: previsualizar nueva ───────────────────────────
         function previsualizarImagen(input) {
             if (!input.files || !input.files[0]) return;
             const file = input.files[0];
@@ -221,7 +295,6 @@ $ingredientes = $stmtIng->fetchAll();
             document.getElementById('uploadArea').style.display = 'flex';
         }
 
-        // ── Imagen: eliminar la actual del servidor ───────────────
         async function eliminarImagenActual() {
             const fd = new FormData();
             fd.append('receta_id', RECETA_ID);
@@ -230,7 +303,6 @@ $ingredientes = $stmtIng->fetchAll();
                 body: fd
             });
             const data = await res.json();
-
             if (res.ok) {
                 document.getElementById('imagenActual').style.display = 'none';
                 document.getElementById('uploadNueva').style.display = 'block';
@@ -243,7 +315,6 @@ $ingredientes = $stmtIng->fetchAll();
             }
         }
 
-        // ── Submit ────────────────────────────────────────────────
         const form = document.getElementById('formEditar');
         const btnGuardar = document.getElementById('btnGuardar');
         const alertError = document.getElementById('alertError');
@@ -291,7 +362,6 @@ $ingredientes = $stmtIng->fetchAll();
             btnGuardar.innerHTML = '<span class="spinner"></span>Guardando...';
 
             try {
-                // Paso 1: guardar cambios de texto
                 const res = await fetch('../api/recetas/editar.php', {
                     method: 'POST',
                     body: new FormData(form)
@@ -302,7 +372,6 @@ $ingredientes = $stmtIng->fetchAll();
                     return;
                 }
 
-                // Paso 2: subir nueva imagen si eligió una
                 const imagenFile = document.getElementById('imagenInput').files[0];
                 if (imagenFile) {
                     const fdImg = new FormData();

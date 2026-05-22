@@ -1,6 +1,11 @@
 <?php
 require_once '../includes/auth.php';
+require_once '../includes/db.php';
 requireLoginPage();
+
+$etiquetas = $pdo->query('SELECT id, nombre, tipo FROM etiquetas ORDER BY tipo, nombre')->fetchAll();
+$dietas    = array_filter($etiquetas, fn($e) => $e['tipo'] === 'dieta');
+$alergenos = array_filter($etiquetas, fn($e) => $e['tipo'] === 'alergeno');
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -14,80 +19,6 @@ requireLoginPage();
     <link href="../assets/css/main.css" rel="stylesheet">
     <link href="../assets/css/dashboard.css" rel="stylesheet">
     <link href="../assets/css/recetas.css" rel="stylesheet">
-</head>
-
-<body>
-
-    <?php require_once '../includes/navbar.php'; ?>
-
-    <div class="form-page">
-        <div class="form-card">
-            <h2>Nueva receta</h2>
-
-            <div class="alert-box alert-error" id="alertError"></div>
-            <div class="alert-box alert-success" id="alertSuccess"></div>
-
-            <!-- Paso 1: datos de la receta -->
-            <form id="formReceta" novalidate>
-
-                <p class="form-section-title">Información general</p>
-
-                <div class="mb-field">
-                    <label class="form-label" for="titulo">Nombre de la receta</label>
-                    <input type="text" id="titulo" name="titulo" class="form-control"
-                        placeholder="Ej. Pozole rojo estilo Sinaloa" required>
-                </div>
-
-                <div class="mb-field">
-                    <label class="form-label" for="tiempo_min">Tiempo de preparación (minutos)</label>
-                    <input type="number" id="tiempo_min" name="tiempo_min" class="form-control"
-                        placeholder="Ej. 45" min="1" required>
-                </div>
-
-                <p class="form-section-title">Ingredientes</p>
-                <div id="ingredientesContainer"></div>
-                <button type="button" class="btn-add-ing" onclick="agregarIngrediente()">
-                    + Agregar ingrediente
-                </button>
-
-                <p class="form-section-title">Pasos de preparación</p>
-                <div class="mb-field">
-                    <label class="form-label" for="pasos">Describe los pasos</label>
-                    <textarea id="pasos" name="pasos" class="form-control"
-                        placeholder="Paso 1: &#10;Paso 2: " required></textarea>
-                </div>
-
-                <p class="form-section-title">Imagen de la receta (opcional)</p>
-                <div class="mb-field">
-                    <div class="image-upload-area" id="uploadArea" onclick="document.getElementById('imagenInput').click()">
-                        <span class="upload-icon">📷</span>
-                        <span class="upload-text">Haz clic para seleccionar una imagen</span>
-                        <span class="upload-hint">JPG, PNG o WEBP · Máximo 2 MB</span>
-                    </div>
-                    <input type="file" id="imagenInput" accept="image/jpeg,image/png,image/webp"
-                        style="display:none" onchange="previsualizarImagen(this)">
-                    <div id="previewContainer" style="display:none; margin-top:.75rem; position:relative;">
-                        <img id="previewImg" src="" alt="Vista previa"
-                            style="width:100%; max-height:220px; object-fit:cover; border-radius:10px; border:1px solid var(--border);">
-                        <button type="button" onclick="quitarImagen()"
-                            style="position:absolute;top:.5rem;right:.5rem;background:#fff;border:1px solid var(--border);
-                         border-radius:6px;padding:.2rem .5rem;cursor:pointer;font-size:.8rem;color:#dc2626;">
-                            × Quitar
-                        </button>
-                    </div>
-                </div>
-
-                <div class="form-actions">
-                    <a href="mis-recetas.php" class="btn-secondary">Cancelar</a>
-                    <button type="submit" class="btn-brand-submit" id="btnGuardar">
-                        Publicar receta
-                    </button>
-                </div>
-
-            </form>
-        </div>
-    </div>
-
     <style>
         .image-upload-area {
             border: 2px dashed var(--border);
@@ -120,7 +51,153 @@ requireLoginPage();
             font-size: .78rem;
             color: var(--muted);
         }
+
+        /* Etiquetas */
+        .tags-grupo {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
+            margin-bottom: .5rem;
+        }
+
+        .tag-check {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            padding: .35rem .85rem;
+            border-radius: 50px;
+            border: 1.5px solid var(--border);
+            background: #fff;
+            font-size: .82rem;
+            font-family: 'DM Sans', sans-serif;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all .2s;
+            user-select: none;
+        }
+
+        .tag-check input {
+            display: none;
+        }
+
+        .tag-check:has(input:checked).dieta {
+            background: #fff7ed;
+            border-color: var(--brand);
+            color: var(--brand);
+            font-weight: 500;
+        }
+
+        .tag-check:has(input:checked).alergeno {
+            background: #fef2f2;
+            border-color: #dc2626;
+            color: #dc2626;
+            font-weight: 500;
+        }
+
+        .tag-check:hover {
+            border-color: var(--brand);
+            color: var(--brand);
+        }
     </style>
+</head>
+
+<body>
+
+    <?php require_once '../includes/navbar.php'; ?>
+
+    <div class="form-page">
+        <div class="form-card">
+            <h2>Nueva receta</h2>
+
+            <div class="alert-box alert-error" id="alertError"></div>
+            <div class="alert-box alert-success" id="alertSuccess"></div>
+
+            <form id="formReceta" novalidate>
+
+                <p class="form-section-title">Información general</p>
+
+                <div class="mb-field">
+                    <label class="form-label" for="titulo">Nombre de la receta</label>
+                    <input type="text" id="titulo" name="titulo" class="form-control"
+                        placeholder="Ej. Pozole rojo estilo Sinaloa" required>
+                </div>
+
+                <div class="mb-field">
+                    <label class="form-label" for="tiempo_min">Tiempo de preparación (minutos)</label>
+                    <input type="number" id="tiempo_min" name="tiempo_min" class="form-control"
+                        placeholder="Ej. 45" min="1" required>
+                </div>
+
+                <p class="form-section-title">Ingredientes</p>
+                <div id="ingredientesContainer"></div>
+                <button type="button" class="btn-add-ing" onclick="agregarIngrediente()">+ Agregar ingrediente</button>
+
+                <p class="form-section-title">Pasos de preparación</p>
+                <div class="mb-field">
+                    <label class="form-label" for="pasos">Describe los pasos</label>
+                    <textarea id="pasos" name="pasos" class="form-control"
+                        placeholder="Paso 1: &#10;Paso 2: " required></textarea>
+                </div>
+
+                <!-- ── Etiquetas ── -->
+                <p class="form-section-title">Etiquetas</p>
+
+                <?php if (!empty($dietas)): ?>
+                    <div class="mb-field">
+                        <label class="form-label">🥗 Dieta</label>
+                        <div class="tags-grupo">
+                            <?php foreach ($dietas as $e): ?>
+                                <label class="tag-check dieta">
+                                    <input type="checkbox" name="etiquetas[]" value="<?= $e['id'] ?>">
+                                    <?= htmlspecialchars($e['nombre']) ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($alergenos)): ?>
+                    <div class="mb-field">
+                        <label class="form-label">⚠️ Alérgenos</label>
+                        <div class="tags-grupo">
+                            <?php foreach ($alergenos as $e): ?>
+                                <label class="tag-check alergeno">
+                                    <input type="checkbox" name="etiquetas[]" value="<?= $e['id'] ?>">
+                                    <?= htmlspecialchars($e['nombre']) ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <p class="form-section-title">Imagen de la receta (opcional)</p>
+                <div class="mb-field">
+                    <div class="image-upload-area" id="uploadArea" onclick="document.getElementById('imagenInput').click()">
+                        <span class="upload-icon">📷</span>
+                        <span class="upload-text">Haz clic para seleccionar una imagen</span>
+                        <span class="upload-hint">JPG, PNG o WEBP · Máximo 2 MB</span>
+                    </div>
+                    <input type="file" id="imagenInput" accept="image/jpeg,image/png,image/webp"
+                        style="display:none" onchange="previsualizarImagen(this)">
+                    <div id="previewContainer" style="display:none; margin-top:.75rem; position:relative;">
+                        <img id="previewImg" src="" alt="Vista previa"
+                            style="width:100%; max-height:220px; object-fit:cover; border-radius:10px; border:1px solid var(--border);">
+                        <button type="button" onclick="quitarImagen()"
+                            style="position:absolute;top:.5rem;right:.5rem;background:#fff;border:1px solid var(--border);
+                                   border-radius:6px;padding:.2rem .5rem;cursor:pointer;font-size:.8rem;color:#dc2626;">
+                            × Quitar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <a href="mis-recetas.php" class="btn-secondary">Cancelar</a>
+                    <button type="submit" class="btn-brand-submit" id="btnGuardar">Publicar receta</button>
+                </div>
+
+            </form>
+        </div>
+    </div>
 
     <script>
         let contadorIng = 0;
@@ -131,10 +208,9 @@ requireLoginPage();
             div.className = 'ingredient-row';
             div.id = `ing-${idx}`;
             div.innerHTML = `
-      <input type="text" name="ingredientes[${idx}][nombre]"   class="form-control" placeholder="Ingrediente" value="${nombre}">
-      <input type="text" name="ingredientes[${idx}][cantidad]" class="form-control" placeholder="Cantidad"    value="${cantidad}">
-      <button type="button" class="btn-remove-ing" onclick="document.getElementById('ing-${idx}').remove()">×</button>
-    `;
+                <input type="text" name="ingredientes[${idx}][nombre]"   class="form-control" placeholder="Ingrediente" value="${nombre}">
+                <input type="text" name="ingredientes[${idx}][cantidad]" class="form-control" placeholder="Cantidad"    value="${cantidad}">
+                <button type="button" class="btn-remove-ing" onclick="document.getElementById('ing-${idx}').remove()">×</button>`;
             document.getElementById('ingredientesContainer').appendChild(div);
         }
 
@@ -171,7 +247,7 @@ requireLoginPage();
 
         function mostrarError(msg) {
             alertError.innerHTML = Array.isArray(msg) ?
-                `<ul>${msg.map(e=>`<li>${e}</li>`).join('')}</ul>` : msg;
+                `<ul>${msg.map(e => `<li>${e}</li>`).join('')}</ul>` : msg;
             alertError.style.display = 'block';
             alertOk.style.display = 'none';
             window.scrollTo({
@@ -211,7 +287,6 @@ requireLoginPage();
             btnGuardar.innerHTML = '<span class="spinner"></span>Publicando...';
 
             try {
-                // Paso 1: guardar receta
                 const res = await fetch('../api/recetas/crear.php', {
                     method: 'POST',
                     body: new FormData(form)
@@ -225,7 +300,6 @@ requireLoginPage();
 
                 const recetaId = data.receta_id;
 
-                // Paso 2: subir imagen si el usuario eligió una
                 const imagenFile = document.getElementById('imagenInput').files[0];
                 if (imagenFile) {
                     const fdImg = new FormData();

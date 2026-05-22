@@ -1,5 +1,4 @@
 <?php
-// ✅ session_start() siempre al inicio, antes de cualquier output o lógica
 session_start();
 require_once '../includes/db.php';
 
@@ -9,7 +8,6 @@ if ($id <= 0) {
     exit;
 }
 
-// Obtener receta
 $stmt = $pdo->prepare(
     'SELECT r.*, u.nombre AS autor
      FROM recetas r JOIN usuarios u ON r.usuario_id = u.id
@@ -22,12 +20,19 @@ if (!$receta) {
     exit;
 }
 
-// Obtener ingredientes
 $stmtIng = $pdo->prepare('SELECT nombre, cantidad FROM ingredientes WHERE receta_id = ? ORDER BY id');
 $stmtIng->execute([$id]);
 $ingredientes = $stmtIng->fetchAll();
 
-// Ver si el usuario está logueado y es el autor
+// Etiquetas de la receta
+$stmtTag = $pdo->prepare(
+    'SELECT e.nombre, e.tipo FROM receta_etiquetas re
+     JOIN etiquetas e ON e.id = re.etiqueta_id
+     WHERE re.receta_id = ? ORDER BY e.tipo, e.nombre'
+);
+$stmtTag->execute([$id]);
+$etiquetas = $stmtTag->fetchAll();
+
 $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (int)$receta['usuario_id'];
 ?>
 <!DOCTYPE html>
@@ -42,6 +47,112 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
     <link href="../assets/css/main.css" rel="stylesheet">
     <link href="../assets/css/dashboard.css" rel="stylesheet">
     <link href="../assets/css/recetas.css" rel="stylesheet">
+    <style>
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(26, 18, 8, .5);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex !important;
+        }
+
+        .modal-box {
+            background: #fff;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 380px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(26, 18, 8, .15);
+        }
+
+        .modal-box h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            margin-bottom: .5rem;
+            color: var(--ink);
+        }
+
+        .modal-box p {
+            font-size: .9rem;
+            color: var(--muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: .75rem;
+        }
+
+        .btn-cancel {
+            flex: 1;
+            padding: .75rem;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            background: #fff;
+            color: var(--muted);
+            font-family: 'DM Sans', sans-serif;
+            font-size: .9rem;
+            cursor: pointer;
+            transition: border-color .2s, color .2s;
+        }
+
+        .btn-cancel:hover {
+            border-color: var(--brand);
+            color: var(--brand);
+        }
+
+        .btn-confirm-delete {
+            flex: 1;
+            padding: .75rem;
+            background: #dc2626;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .2s;
+        }
+
+        .btn-confirm-delete:hover {
+            background: #b91c1c;
+        }
+
+        /* Etiquetas en detalle */
+        .detalle-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .detalle-tag {
+            font-size: .78rem;
+            padding: .25rem .75rem;
+            border-radius: 50px;
+            font-weight: 500;
+        }
+
+        .detalle-tag-dieta {
+            background: #fff7ed;
+            color: var(--brand);
+            border: 1px solid #fdd5c4;
+        }
+
+        .detalle-tag-alergeno {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+    </style>
 </head>
 
 <body>
@@ -50,16 +161,13 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
 
     <div class="detalle-page">
 
-        <!-- Imagen o placeholder -->
         <?php if (!empty($receta['imagen_ruta'])): ?>
             <img src="../<?= htmlspecialchars($receta['imagen_ruta']) ?>"
-                alt="<?= htmlspecialchars($receta['titulo']) ?>"
-                class="detalle-img">
+                alt="<?= htmlspecialchars($receta['titulo']) ?>" class="detalle-img">
         <?php else: ?>
             <div class="detalle-img-placeholder">🍳</div>
         <?php endif; ?>
 
-        <!-- Título y meta -->
         <h1 class="detalle-titulo"><?= htmlspecialchars($receta['titulo']) ?></h1>
 
         <div class="detalle-meta">
@@ -68,16 +176,28 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
             <span>📅 <?= date('d/m/Y', strtotime($receta['created_at'])) ?></span>
         </div>
 
-        <!-- Acciones del autor -->
+        <!-- Etiquetas -->
+        <?php if (!empty($etiquetas)): ?>
+            <div class="detalle-tags">
+                <?php foreach ($etiquetas as $tag): ?>
+                    <span class="detalle-tag detalle-tag-<?= $tag['tipo'] ?>">
+                        <?= $tag['tipo'] === 'dieta' ? '🥗' : '⚠️' ?>
+                        <?= htmlspecialchars($tag['nombre']) ?>
+                    </span>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
         <?php if ($esAutor): ?>
             <div style="display:flex; gap:.75rem; margin-bottom:1.5rem;">
                 <a href="editar-receta.php?id=<?= $receta['id'] ?>" class="btn-edit" style="padding:.5rem 1.25rem;">✏️ Editar</a>
                 <button class="btn-delete" style="padding:.5rem 1.25rem;"
-                    onclick="confirmarEliminar(<?= $receta['id'] ?>)">🗑️ Eliminar</button>
+                    onclick="confirmarEliminar(<?= $receta['id'] ?>, '<?= htmlspecialchars(addslashes($receta['titulo'])) ?>')">
+                    🗑️ Eliminar
+                </button>
             </div>
         <?php endif; ?>
 
-        <!-- Ingredientes -->
         <h2 class="detalle-section-title">Ingredientes</h2>
         <?php if (empty($ingredientes)): ?>
             <p style="color:var(--muted); font-size:.9rem;">Sin ingredientes registrados.</p>
@@ -94,7 +214,6 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
             </ul>
         <?php endif; ?>
 
-        <!-- Pasos -->
         <h2 class="detalle-section-title">Preparación</h2>
         <p class="pasos-text"><?= htmlspecialchars($receta['pasos']) ?></p>
 
@@ -106,36 +225,64 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
 
     </div>
 
-    <!-- Modal eliminar (solo si es autor) -->
     <?php if ($esAutor): ?>
         <div class="modal-overlay" id="modalEliminar">
             <div class="modal-box">
                 <h3>¿Eliminar receta?</h3>
-                <p>Esta acción no se puede deshacer.</p>
+                <p id="modalMensaje">Esta acción no se puede deshacer.</p>
                 <div class="modal-actions">
-                    <button class="btn-cancel" onclick="document.getElementById('modalEliminar').classList.remove('active')">Cancelar</button>
-                    <button class="btn-confirm-delete" id="btnConfirmar">Eliminar</button>
+                    <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+                    <button class="btn-confirm-delete" id="btnConfirmar">Sí, eliminar</button>
                 </div>
             </div>
         </div>
 
+        <div id="alertErr" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;max-width:300px;z-index:1000;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:.85rem 1rem;font-size:.9rem;"></div>
+
         <script>
             let recetaId = null;
 
-            function confirmarEliminar(id) {
+            function confirmarEliminar(id, titulo) {
                 recetaId = id;
+                document.getElementById('modalMensaje').textContent =
+                    `¿Seguro que quieres eliminar "${titulo}"? Esta acción no se puede deshacer.`;
                 document.getElementById('modalEliminar').classList.add('active');
             }
 
+            function cerrarModal() {
+                document.getElementById('modalEliminar').classList.remove('active');
+                recetaId = null;
+            }
+
+            document.getElementById('modalEliminar').addEventListener('click', function(e) {
+                if (e.target === this) cerrarModal();
+            });
+
             document.getElementById('btnConfirmar').addEventListener('click', async () => {
-                const fd = new FormData();
-                fd.append('receta_id', recetaId);
-                const res = await fetch('../api/recetas/eliminar.php', {
-                    method: 'POST',
-                    body: fd
-                });
-                if (res.ok) {
-                    window.location.href = 'mis-recetas.php';
+                if (!recetaId) return;
+                const id = recetaId;
+                cerrarModal();
+                try {
+                    const fd = new FormData();
+                    fd.append('receta_id', id);
+                    const res = await fetch('../api/recetas/eliminar.php', {
+                        method: 'POST',
+                        body: fd
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        window.location.href = 'mis-recetas.php';
+                    } else {
+                        const el = document.getElementById('alertErr');
+                        el.textContent = data.error || 'Error al eliminar.';
+                        el.style.display = 'block';
+                        setTimeout(() => el.style.display = 'none', 3000);
+                    }
+                } catch {
+                    const el = document.getElementById('alertErr');
+                    el.textContent = 'No se pudo conectar con el servidor.';
+                    el.style.display = 'block';
+                    setTimeout(() => el.style.display = 'none', 3000);
                 }
             });
         </script>
