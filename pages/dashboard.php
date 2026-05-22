@@ -37,7 +37,7 @@ $nombre = htmlspecialchars($_SESSION['usuario_nombre']);
             <h3>Explorar</h3>
             <p>Descubre recetas de otros usuarios</p>
         </a>
-        <a href="#" class="qcard">
+        <a href="mis-guardadas.php" class="qcard">
             <span class="qcard-icon">🔖</span>
             <h3>Guardadas</h3>
             <p>Recetas que guardaste para después</p>
