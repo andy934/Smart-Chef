@@ -24,7 +24,6 @@ $stmtIng = $pdo->prepare('SELECT nombre, cantidad FROM ingredientes WHERE receta
 $stmtIng->execute([$id]);
 $ingredientes = $stmtIng->fetchAll();
 
-// Etiquetas de la receta
 $stmtTag = $pdo->prepare(
     'SELECT e.nombre, e.tipo FROM receta_etiquetas re
      JOIN etiquetas e ON e.id = re.etiqueta_id
@@ -33,7 +32,16 @@ $stmtTag = $pdo->prepare(
 $stmtTag->execute([$id]);
 $etiquetas = $stmtTag->fetchAll();
 
-$esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (int)$receta['usuario_id'];
+$usuarioId = !empty($_SESSION['usuario_id']) ? (int)$_SESSION['usuario_id'] : 0;
+$esAutor   = $usuarioId > 0 && $usuarioId === (int)$receta['usuario_id'];
+
+// Ver si el usuario ya guardó esta receta
+$yaGuardada = false;
+if ($usuarioId > 0 && !$esAutor) {
+    $stmtG = $pdo->prepare('SELECT id FROM recetas_guardadas WHERE usuario_id = ? AND receta_id = ?');
+    $stmtG->execute([$usuarioId, $id]);
+    $yaGuardada = (bool)$stmtG->fetch();
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -100,7 +108,6 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
             font-family: 'DM Sans', sans-serif;
             font-size: .9rem;
             cursor: pointer;
-            transition: border-color .2s, color .2s;
         }
 
         .btn-cancel:hover {
@@ -126,7 +133,7 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
             background: #b91c1c;
         }
 
-        /* Etiquetas en detalle */
+        /* Etiquetas */
         .detalle-tags {
             display: flex;
             flex-wrap: wrap;
@@ -151,6 +158,34 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
             background: #fef2f2;
             color: #dc2626;
             border: 1px solid #fecaca;
+        }
+
+        /* Botón guardar */
+        .btn-guardar {
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            padding: .5rem 1.25rem;
+            border-radius: 8px;
+            font-size: .88rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1.5px solid var(--border);
+            color: var(--muted);
+            background: #fff;
+            transition: all .2s;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .btn-guardar:hover {
+            border-color: var(--brand);
+            color: var(--brand);
+        }
+
+        .btn-guardar.guardada {
+            border-color: var(--brand);
+            color: var(--brand);
+            background: #fff7ed;
         }
     </style>
 </head>
@@ -188,15 +223,29 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
             </div>
         <?php endif; ?>
 
-        <?php if ($esAutor): ?>
-            <div style="display:flex; gap:.75rem; margin-bottom:1.5rem;">
+        <!-- Acciones -->
+        <div style="display:flex; gap:.75rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+
+            <?php if ($esAutor): ?>
                 <a href="editar-receta.php?id=<?= $receta['id'] ?>" class="btn-edit" style="padding:.5rem 1.25rem;">✏️ Editar</a>
                 <button class="btn-delete" style="padding:.5rem 1.25rem;"
                     onclick="confirmarEliminar(<?= $receta['id'] ?>, '<?= htmlspecialchars(addslashes($receta['titulo'])) ?>')">
                     🗑️ Eliminar
                 </button>
-            </div>
-        <?php endif; ?>
+
+            <?php elseif ($usuarioId > 0): ?>
+                <!-- Botón guardar (solo para usuarios logueados que no son el autor) -->
+                <button class="btn-guardar <?= $yaGuardada ? 'guardada' : '' ?>" id="btnGuardar"
+                    onclick="toggleGuardar(<?= $receta['id'] ?>)">
+                    <?= $yaGuardada ? '🔖 Guardada' : '🔖 Guardar receta' ?>
+                </button>
+
+            <?php else: ?>
+                <!-- No logueado: invitar a iniciar sesión -->
+                <a href="login.php" class="btn-guardar">🔖 Inicia sesión para guardar</a>
+            <?php endif; ?>
+
+        </div>
 
         <h2 class="detalle-section-title">Ingredientes</h2>
         <?php if (empty($ingredientes)): ?>
@@ -225,7 +274,11 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
 
     </div>
 
+    <!-- Alerta flotante -->
+    <div id="alertFlotante" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;max-width:300px;z-index:1000;border-radius:10px;padding:.85rem 1rem;font-size:.9rem;"></div>
+
     <?php if ($esAutor): ?>
+        <!-- Modal eliminar -->
         <div class="modal-overlay" id="modalEliminar">
             <div class="modal-box">
                 <h3>¿Eliminar receta?</h3>
@@ -236,10 +289,49 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
                 </div>
             </div>
         </div>
+    <?php endif; ?>
 
-        <div id="alertErr" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;max-width:300px;z-index:1000;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:.85rem 1rem;font-size:.9rem;"></div>
+    <script>
+        // ── Guardar / desguardar ──────────────────────────────────
+        async function toggleGuardar(recetaId) {
+            const btn = document.getElementById('btnGuardar');
+            btn.disabled = true;
+            try {
+                const fd = new FormData();
+                fd.append('receta_id', recetaId);
+                const res = await fetch('../api/recetas/guardar.php', {
+                    method: 'POST',
+                    body: fd
+                });
+                const data = await res.json();
 
-        <script>
+                if (res.ok) {
+                    const guardada = data.guardada;
+                    btn.textContent = guardada ? '🔖 Guardada' : '🔖 Guardar receta';
+                    btn.classList.toggle('guardada', guardada);
+                    mostrarAlerta(data.mensaje, guardada ? 'ok' : 'ok');
+                } else {
+                    mostrarAlerta(data.error || 'Error al guardar.', 'err');
+                }
+            } catch {
+                mostrarAlerta('No se pudo conectar con el servidor.', 'err');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function mostrarAlerta(msg, tipo) {
+            const el = document.getElementById('alertFlotante');
+            el.textContent = msg;
+            el.style.background = tipo === 'ok' ? '#f0fdf4' : '#fef2f2';
+            el.style.border = tipo === 'ok' ? '1px solid #bbf7d0' : '1px solid #fecaca';
+            el.style.color = tipo === 'ok' ? '#166534' : '#991b1b';
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 3000);
+        }
+
+        <?php if ($esAutor): ?>
+            // ── Eliminar receta ───────────────────────────────────────
             let recetaId = null;
 
             function confirmarEliminar(id, titulo) {
@@ -273,20 +365,14 @@ $esAutor = !empty($_SESSION['usuario_id']) && (int)$_SESSION['usuario_id'] === (
                     if (res.ok) {
                         window.location.href = 'mis-recetas.php';
                     } else {
-                        const el = document.getElementById('alertErr');
-                        el.textContent = data.error || 'Error al eliminar.';
-                        el.style.display = 'block';
-                        setTimeout(() => el.style.display = 'none', 3000);
+                        mostrarAlerta(data.error || 'Error al eliminar.', 'err');
                     }
                 } catch {
-                    const el = document.getElementById('alertErr');
-                    el.textContent = 'No se pudo conectar con el servidor.';
-                    el.style.display = 'block';
-                    setTimeout(() => el.style.display = 'none', 3000);
+                    mostrarAlerta('No se pudo conectar con el servidor.', 'err');
                 }
             });
-        </script>
-    <?php endif; ?>
+        <?php endif; ?>
+    </script>
 
 </body>
 
