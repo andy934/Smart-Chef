@@ -43,11 +43,7 @@ function usuarioActual(): int
 // ── checkOwner() ─────────────────────────────────────────────
 // Verifica que la receta con $receta_id pertenezca al usuario
 // con $usuario_id. Si no, termina la ejecución con error 403.
-//
-// Uso:
-//   require_once '../../includes/db.php';
-//   require_once '../../includes/auth.php';
-//   checkOwner($pdo, $receta_id, usuarioActual());
+
 function checkOwner(PDO $pdo, int $receta_id, int $usuario_id): void
 {
     $stmt = $pdo->prepare('SELECT usuario_id FROM recetas WHERE id = ?');

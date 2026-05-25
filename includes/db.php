@@ -2,13 +2,12 @@
 // ============================================================
 //  SmartChef — Conexión a la base de datos
 //  Archivo: includes/db.php
-//  Usar en cualquier archivo PHP con: require_once '../includes/db.php';
 // ============================================================
 
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'smartchef');
-define('DB_USER', 'root');       // Usuario por defecto en XAMPP
-define('DB_PASS', '');           // Contraseña vacía por defecto en XAMPP
+define('DB_USER', 'root');
+define('DB_PASS', '');
 define('DB_CHARSET', 'utf8mb4');
 
 $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
@@ -16,7 +15,7 @@ $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,   // Lanza excepciones en errores
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,         // Resultados como arrays asociativos
-    PDO::ATTR_EMULATE_PREPARES   => false,                    // Prepared statements reales (seguridad)
+    PDO::ATTR_EMULATE_PREPARES   => false,
 ];
 
 try {
