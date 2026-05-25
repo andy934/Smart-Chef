@@ -1,15 +1,18 @@
 <?php
 // ============================================================
-//  SmartChef — API: Exportar receta a PDF
+//  SmartChef — API: Exportar receta a PDF con FPDF
 //  Archivo: api/recetas/exportar-pdf.php
 //  Método:  GET
 //  Params:  id (receta_id)
 // ============================================================
 
 require_once '../../includes/db.php';
+require_once '../../includes/fpdf.php';
+
+// ✅ Buffer para evitar que warnings arruinen el PDF
+ob_start();
 
 $id = (int)($_GET['id'] ?? 0);
-
 if ($id <= 0) {
     http_response_code(422);
     die('Receta no válida.');
@@ -18,13 +21,11 @@ if ($id <= 0) {
 // Obtener receta
 $stmt = $pdo->prepare(
     'SELECT r.*, u.nombre AS autor
-     FROM recetas r
-     JOIN usuarios u ON r.usuario_id = u.id
+     FROM recetas r JOIN usuarios u ON r.usuario_id = u.id
      WHERE r.id = ?'
 );
 $stmt->execute([$id]);
 $receta = $stmt->fetch();
-
 if (!$receta) {
     http_response_code(404);
     die('Receta no encontrada.');
@@ -44,88 +45,124 @@ $stmtEt = $pdo->prepare(
 $stmtEt->execute([$id]);
 $etiquetas = array_column($stmtEt->fetchAll(), 'nombre');
 
-// ── Generar HTML del PDF ──────────────────────────────────────
-$titulo    = htmlspecialchars($receta['titulo']);
-$autor     = htmlspecialchars($receta['autor']);
-$tiempo    = $receta['tiempo_min'];
-$pasos     = nl2br(htmlspecialchars($receta['pasos']));
-$fecha     = date('d/m/Y', strtotime($receta['created_at']));
-$etiqHtml  = !empty($etiquetas)
-    ? implode('', array_map(fn($e) => "<span class='tag'>" . htmlspecialchars($e) . "</span>", $etiquetas))
-    : '';
-
-$ingHtml = '';
-foreach ($ingredientes as $ing) {
-    $nombre   = htmlspecialchars($ing['nombre']);
-    $cantidad = htmlspecialchars($ing['cantidad'] ?? '');
-    $ingHtml .= "<li><span class='ing-nombre'>$nombre</span>" . ($cantidad ? "<span class='ing-cantidad'>$cantidad</span>" : "") . "</li>";
+// ── Helpers ───────────────────────────────────────────────────
+// FPDF solo soporta Latin1 — convertir UTF-8 ignorando caracteres no convertibles
+function utf8($str)
+{
+    // Primero limpiar emojis y caracteres no Latin1
+    $str = preg_replace('/[^\x00-\x7F\xA0-\xFF]/u', '', $str);
+    $result = iconv('UTF-8', 'ISO-8859-1//TRANSLIT//IGNORE', $str);
+    return $result !== false ? $result : $str;
 }
 
-$html = <<<HTML
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>{$titulo} — SmartChef</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Georgia, serif; color: #1A1208; background: #fff; padding: 2.5rem; max-width: 720px; margin: 0 auto; }
-  .header { border-bottom: 3px solid #E85D2F; padding-bottom: 1rem; margin-bottom: 1.5rem; }
-  .brand  { font-size: .85rem; color: #E85D2F; font-weight: bold; letter-spacing: .1em; text-transform: uppercase; margin-bottom: .5rem; }
-  h1      { font-size: 2rem; color: #1A1208; line-height: 1.2; margin-bottom: .5rem; }
-  .meta   { font-size: .85rem; color: #8C7B6B; display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: .5rem; }
-  .tags   { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .75rem; }
-  .tag    { background: #FFF3EE; border: 1px solid #fdd5c4; color: #E85D2F; border-radius: 20px; padding: .15rem .6rem; font-size: .75rem; font-family: Arial, sans-serif; }
-  section { margin-bottom: 1.75rem; }
-  h2      { font-size: 1.1rem; color: #E85D2F; border-bottom: 1px solid #EAE0D5; padding-bottom: .3rem; margin-bottom: .75rem; }
-  ul.ing  { list-style: none; display: flex; flex-direction: column; gap: .35rem; }
-  ul.ing li { display: flex; justify-content: space-between; padding: .45rem .75rem; background: #FDF8F3; border-radius: 6px; font-size: .9rem; }
-  .ing-cantidad { color: #E85D2F; font-weight: bold; }
-  .pasos-text { font-size: .95rem; line-height: 1.9; white-space: pre-line; color: #1A1208; }
-  .footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #EAE0D5; font-size: .78rem; color: #8C7B6B; text-align: center; }
-  @media print {
-    body { padding: 1rem; }
-    .no-print { display: none; }
-  }
-</style>
-</head>
-<body>
+// ── Clase PDF personalizada ───────────────────────────────────
+class RecetaPDF extends FPDF
+{
+    public $tituloReceta = '';
 
-<div class="no-print" style="margin-bottom:1.5rem;">
-  <button onclick="window.print()" style="background:#E85D2F;color:#fff;border:none;border-radius:8px;padding:.6rem 1.5rem;font-size:.9rem;cursor:pointer;">
-    🖨️ Imprimir / Guardar como PDF
-  </button>
-</div>
+    function Header()
+    {
+        // Franja naranja de marca
+        $this->SetFillColor(232, 93, 47);
+        $this->Rect(0, 0, 210, 12, 'F');
+        $this->SetFont('Arial', 'B', 9);
+        $this->SetTextColor(255, 255, 255);
+        $this->SetY(3);
+        $this->Cell(0, 6, utf8('🍳 SmartChef'), 0, 0, 'C');
+        $this->Ln(14);
+    }
 
-<div class="header">
-  <div class="brand">🍳 SmartChef</div>
-  <h1>{$titulo}</h1>
-  <div class="meta">
-    <span>👤 {$autor}</span>
-    <span>⏱ {$tiempo} minutos</span>
-    <span>📅 {$fecha}</span>
-  </div>
-  <div class="tags">{$etiqHtml}</div>
-</div>
+    function Footer()
+    {
+        $this->SetY(-15);
+        $this->SetFont('Arial', 'I', 8);
+        $this->SetTextColor(140, 123, 107);
+        $this->Cell(0, 10, utf8('Generado por SmartChef  ·  Página ') . $this->PageNo(), 0, 0, 'C');
+    }
 
-<section>
-  <h2>Ingredientes</h2>
-  <ul class="ing">{$ingHtml}</ul>
-</section>
+    function SectionTitle($texto)
+    {
+        $this->SetFont('Arial', 'B', 11);
+        $this->SetTextColor(232, 93, 47);
+        $this->SetFillColor(253, 248, 243);
+        $this->Cell(0, 8, utf8($texto), 0, 1, 'L', true);
+        $this->SetDrawColor(234, 224, 213);
+        $this->Line($this->GetX(), $this->GetY(), $this->GetX() + 175, $this->GetY());
+        $this->Ln(3);
+    }
+}
 
-<section>
-  <h2>Preparación</h2>
-  <p class="pasos-text">{$pasos}</p>
-</section>
+// ── Generar PDF ───────────────────────────────────────────────
+$pdf = new RecetaPDF('P', 'mm', 'A4');
+$pdf->SetAuthor(utf8($receta['autor']));
+$pdf->SetTitle(utf8($receta['titulo']));
+$pdf->SetCreator('SmartChef');
+$pdf->AddPage();
+$pdf->SetMargins(18, 18, 18);
+$pdf->SetAutoPageBreak(true, 18);
 
-<div class="footer">
-  Generado por SmartChef · smartchef.local · {$fecha}
-</div>
+// ── Título de la receta ───────────────────────────────────────
+$pdf->SetFont('Times', 'B', 22);
+$pdf->SetTextColor(26, 18, 8);
+$pdf->MultiCell(0, 10, utf8($receta['titulo']), 0, 'L');
+$pdf->Ln(2);
 
-</body>
-</html>
-HTML;
+// ── Meta (autor, tiempo, fecha) ───────────────────────────────
+$pdf->SetFont('Arial', '', 9);
+$pdf->SetTextColor(140, 123, 107);
+$fecha = date('d/m/Y', strtotime($receta['created_at']));
+$pdf->Cell(0, 6, utf8("Autor: {$receta['autor']}   ·   Tiempo: {$receta['tiempo_min']} min   ·   {$fecha}"), 0, 1);
+$pdf->Ln(2);
 
-// Devolver como página HTML imprimible (el navegador maneja el PDF)
-header('Content-Type: text/html; charset=utf-8');
-echo $html;
+// ── Etiquetas ─────────────────────────────────────────────────
+if (!empty($etiquetas)) {
+    $pdf->SetFont('Arial', '', 8);
+    $pdf->SetTextColor(232, 93, 47);
+    $pdf->SetFillColor(255, 247, 237);
+    $pdf->SetDrawColor(253, 213, 196);
+    foreach ($etiquetas as $etq) {
+        $w = $pdf->GetStringWidth(utf8($etq)) + 6;
+        $pdf->Cell($w, 6, utf8($etq), 1, 0, 'C', true);
+        $pdf->Cell(2, 6, '', 0); // espacio entre tags
+    }
+    $pdf->Ln(10);
+} else {
+    $pdf->Ln(4);
+}
+
+// ── Ingredientes ──────────────────────────────────────────────
+$pdf->SectionTitle('Ingredientes');
+$pdf->SetFont('Arial', '', 10);
+$pdf->SetTextColor(26, 18, 8);
+
+foreach ($ingredientes as $i => $ing) {
+    // Fondo alternado
+    if ($i % 2 === 0) {
+        $pdf->SetFillColor(253, 248, 243);
+    } else {
+        $pdf->SetFillColor(255, 255, 255);
+    }
+    $nombre   = utf8($ing['nombre']);
+    $cantidad = utf8($ing['cantidad'] ?? '');
+
+    $pdf->SetFont('Arial', '', 10);
+    $pdf->SetTextColor(26, 18, 8);
+    $pdf->Cell(120, 7, $nombre, 0, 0, 'L', true);
+
+    $pdf->SetFont('Arial', 'B', 10);
+    $pdf->SetTextColor(232, 93, 47);
+    $pdf->Cell(55, 7, $cantidad, 0, 1, 'R', true);
+}
+$pdf->Ln(5);
+
+// ── Pasos de preparación ──────────────────────────────────────
+$pdf->SectionTitle('Preparación');
+$pdf->SetFont('Arial', '', 10);
+$pdf->SetTextColor(26, 18, 8);
+// El segundo parámetro de MultiCell es el alto de línea (6mm ≈ interlineado cómodo)
+$pdf->MultiCell(0, 7, utf8($receta['pasos']), 0, 'L');
+
+// ── Descargar PDF ─────────────────────────────────────────────
+$nombreArchivo = 'receta-' . $id . '-' . date('Ymd') . '.pdf';
+ob_end_clean(); // ✅ Limpiar cualquier output previo antes de enviar el PDF
+$pdf->Output('D', $nombreArchivo);

@@ -225,7 +225,10 @@ if ($usuarioId > 0 && !$esAutor) {
 
         <!-- Acciones -->
         <div style="display:flex; gap:.75rem; margin-bottom:1.5rem; flex-wrap:wrap;">
-
+            <a href="../api/recetas/exportar-pdf.php?id=<?= $receta['id'] ?>"
+                target="_blank" class="btn-accion btn-pdf" style="padding:.5rem 1.25rem;">
+                📄 Exportar PDF
+            </a>
             <?php if ($esAutor): ?>
                 <a href="editar-receta.php?id=<?= $receta['id'] ?>" class="btn-edit" style="padding:.5rem 1.25rem;">✏️ Editar</a>
                 <button class="btn-delete" style="padding:.5rem 1.25rem;"
