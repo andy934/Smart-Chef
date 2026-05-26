@@ -225,28 +225,29 @@ if ($usuarioId > 0 && !$esAutor) {
 
         <!-- Acciones -->
         <div style="display:flex; gap:.75rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+
             <?php if ($esAutor): ?>
                 <a href="editar-receta.php?id=<?= $receta['id'] ?>" class="btn-edit" style="padding:.5rem 1.25rem;">✏️ Editar</a>
-                <button class="btn-accion btn-pdf" style="padding:.5rem 1.25rem;"
-                    onclick="window.location.href='../api/recetas/exportar-pdf.php?id=<?= $receta['id'] ?>'">
-                    📄 Exportar PDF
-                </button>
                 <button class="btn-delete" style="padding:.5rem 1.25rem;"
                     onclick="confirmarEliminar(<?= $receta['id'] ?>, '<?= htmlspecialchars(addslashes($receta['titulo'])) ?>')">
                     🗑️ Eliminar
                 </button>
 
             <?php elseif ($usuarioId > 0): ?>
-                <!-- Botón guardar (solo para usuarios logueados que no son el autor) -->
                 <button class="btn-guardar <?= $yaGuardada ? 'guardada' : '' ?>" id="btnGuardar"
                     onclick="toggleGuardar(<?= $receta['id'] ?>)">
                     <?= $yaGuardada ? '🔖 Guardada' : '🔖 Guardar receta' ?>
                 </button>
 
             <?php else: ?>
-                <!-- No logueado: invitar a iniciar sesión -->
                 <a href="login.php" class="btn-guardar">🔖 Inicia sesión para guardar</a>
             <?php endif; ?>
+
+            <!-- Exportar PDF: visible para todos -->
+            <button class="btn-accion btn-pdf" style="padding:.5rem 1.25rem;"
+                onclick="window.location.href='../api/recetas/exportar-pdf.php?id=<?= $receta['id'] ?>'">
+                📄 Exportar PDF
+            </button>
 
         </div>
 
