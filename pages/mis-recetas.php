@@ -1,4 +1,5 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../includes/auth.php';
 require_once '../includes/db.php';
 requireLoginPage();
@@ -7,12 +8,25 @@ $usuario_id = usuarioActual();
 
 $stmt = $pdo->prepare(
     'SELECT id, titulo, tiempo_min, imagen_ruta, created_at
-     FROM recetas
-     WHERE usuario_id = ?
-     ORDER BY created_at DESC'
+     FROM recetas WHERE usuario_id = ? ORDER BY created_at DESC'
 );
 $stmt->execute([$usuario_id]);
 $recetas = $stmt->fetchAll();
+
+$etiquetasMap = [];
+if (!empty($recetas)) {
+    $ids = implode(',', array_column($recetas, 'id'));
+    $tagStmt = $pdo->query(
+        "SELECT re.receta_id, e.nombre, e.tipo
+         FROM receta_etiquetas re
+         JOIN etiquetas e ON e.id = re.etiqueta_id
+         WHERE re.receta_id IN ($ids)
+         ORDER BY e.tipo, e.nombre"
+    );
+    foreach ($tagStmt->fetchAll() as $t) {
+        $etiquetasMap[$t['receta_id']][] = $t;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -27,7 +41,6 @@ $recetas = $stmt->fetchAll();
     <link href="../assets/css/dashboard.css" rel="stylesheet">
     <link href="../assets/css/recetas.css" rel="stylesheet">
     <style>
-        /* Fix: el overlay ocupa toda la pantalla y centra el modal */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -105,6 +118,13 @@ $recetas = $stmt->fetchAll();
         .btn-confirm-delete:hover {
             background: #b91c1c;
         }
+
+        /* Acciones sobre tarjeta masonry */
+        .card-actions-overlay {
+            display: flex;
+            gap: .4rem;
+            padding: .5rem 1rem .75rem;
+        }
     </style>
 </head>
 
@@ -122,7 +142,7 @@ $recetas = $stmt->fetchAll();
 
     <div class="recipes-grid">
         <?php if (empty($recetas)): ?>
-            <div class="empty-state">
+            <div class="empty-state" style="column-span:all;">
                 <span class="empty-state-icon">📝</span>
                 <h3>Aún no tienes recetas</h3>
                 <p>¡Comparte tu primera receta con la comunidad!</p>
@@ -131,8 +151,8 @@ $recetas = $stmt->fetchAll();
             </div>
         <?php else: ?>
             <?php foreach ($recetas as $r): ?>
-                <div class="recipe-card" style="cursor:default">
-                    <a href="detalle.php?id=<?= $r['id'] ?>" style="text-decoration:none; color:inherit;">
+                <div class="recipe-card">
+                    <a href="detalle.php?id=<?= $r['id'] ?>" style="text-decoration:none; color:inherit; display:block;">
                         <?php if (!empty($r['imagen_ruta'])): ?>
                             <img src="../<?= htmlspecialchars($r['imagen_ruta']) ?>"
                                 alt="<?= htmlspecialchars($r['titulo']) ?>"
@@ -140,6 +160,18 @@ $recetas = $stmt->fetchAll();
                         <?php else: ?>
                             <div class="recipe-card-placeholder">🍳</div>
                         <?php endif; ?>
+
+                        <?php if (!empty($etiquetasMap[$r['id']])): ?>
+                            <div class="card-tags">
+                                <?php foreach ($etiquetasMap[$r['id']] as $tag): ?>
+                                    <span class="card-tag card-tag-<?= $tag['tipo'] ?>">
+                                        <?= $tag['tipo'] === 'dieta' ? '🥗' : '⚠️' ?>
+                                        <?= htmlspecialchars($tag['nombre']) ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
                         <div class="recipe-card-body">
                             <div class="recipe-card-title"><?= htmlspecialchars($r['titulo']) ?></div>
                             <div class="recipe-card-meta">
@@ -147,7 +179,7 @@ $recetas = $stmt->fetchAll();
                             </div>
                         </div>
                     </a>
-                    <div class="recipe-card-actions">
+                    <div class="card-actions-overlay">
                         <a href="editar-receta.php?id=<?= $r['id'] ?>" class="btn-edit">✏️ Editar</a>
                         <button class="btn-delete"
                             onclick="confirmarEliminar(<?= (int)$r['id'] ?>, '<?= htmlspecialchars(addslashes($r['titulo'])) ?>')">
@@ -159,7 +191,6 @@ $recetas = $stmt->fetchAll();
         <?php endif; ?>
     </div>
 
-    <!-- Modal — fuera del grid para que el z-index funcione bien -->
     <div class="modal-overlay" id="modalEliminar">
         <div class="modal-box">
             <h3>¿Eliminar receta?</h3>
@@ -171,7 +202,6 @@ $recetas = $stmt->fetchAll();
         </div>
     </div>
 
-    <!-- Alertas flotantes -->
     <div id="alertOk" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;max-width:300px;z-index:1000;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;border-radius:10px;padding:.85rem 1rem;font-size:.9rem;"></div>
     <div id="alertErr" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;max-width:300px;z-index:1000;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:.85rem 1rem;font-size:.9rem;"></div>
 
@@ -190,17 +220,14 @@ $recetas = $stmt->fetchAll();
             recetaIdAEliminar = null;
         }
 
-        // Cerrar modal al hacer clic fuera del box
         document.getElementById('modalEliminar').addEventListener('click', function(e) {
             if (e.target === this) cerrarModal();
         });
 
         document.getElementById('btnConfirmarEliminar').addEventListener('click', async () => {
             if (!recetaIdAEliminar) return;
-
             const id = recetaIdAEliminar;
             cerrarModal();
-
             try {
                 const fd = new FormData();
                 fd.append('receta_id', id);
@@ -209,7 +236,6 @@ $recetas = $stmt->fetchAll();
                     body: fd
                 });
                 const data = await res.json();
-
                 if (res.ok) {
                     mostrarAlerta('alertOk', data.mensaje || 'Receta eliminada.');
                     setTimeout(() => location.reload(), 1200);

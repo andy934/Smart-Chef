@@ -10,10 +10,9 @@ $stmt = $pdo->query(
 );
 $recetas = $stmt->fetchAll();
 
-// Cargar etiquetas de todas las recetas de una sola consulta
 $etiquetasMap = [];
 if (!empty($recetas)) {
-    $ids     = implode(',', array_column($recetas, 'id'));
+    $ids = implode(',', array_column($recetas, 'id'));
     $tagStmt = $pdo->query(
         "SELECT re.receta_id, e.nombre, e.tipo
          FROM receta_etiquetas re
@@ -38,33 +37,6 @@ if (!empty($recetas)) {
     <link href="../assets/css/main.css" rel="stylesheet">
     <link href="../assets/css/dashboard.css" rel="stylesheet">
     <link href="../assets/css/recetas.css" rel="stylesheet">
-    <style>
-        .card-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: .3rem;
-            padding: 0 1.1rem .75rem;
-        }
-
-        .card-tag {
-            font-size: .7rem;
-            padding: .2rem .6rem;
-            border-radius: 50px;
-            font-weight: 500;
-        }
-
-        .card-tag-dieta {
-            background: #fff7ed;
-            color: var(--brand);
-            border: 1px solid #fdd5c4;
-        }
-
-        .card-tag-alergeno {
-            background: #fef2f2;
-            color: #dc2626;
-            border: 1px solid #fecaca;
-        }
-    </style>
 </head>
 
 <body>
@@ -80,7 +52,7 @@ if (!empty($recetas)) {
 
     <div class="recipes-grid">
         <?php if (empty($recetas)): ?>
-            <div class="empty-state">
+            <div class="empty-state" style="column-span:all;">
                 <span class="empty-state-icon">🍽️</span>
                 <h3>Aún no hay recetas</h3>
                 <p>¡Sé el primero en publicar una receta!</p>
@@ -96,14 +68,6 @@ if (!empty($recetas)) {
                         <div class="recipe-card-placeholder">🍳</div>
                     <?php endif; ?>
 
-                    <div class="recipe-card-body">
-                        <div class="recipe-card-title"><?= htmlspecialchars($r['titulo']) ?></div>
-                        <div class="recipe-card-meta">
-                            <span>👤 <?= htmlspecialchars($r['autor']) ?></span>
-                            <span class="recipe-card-time">⏱ <?= $r['tiempo_min'] ?> min</span>
-                        </div>
-                    </div>
-
                     <?php if (!empty($etiquetasMap[$r['id']])): ?>
                         <div class="card-tags">
                             <?php foreach ($etiquetasMap[$r['id']] as $tag): ?>
@@ -114,6 +78,14 @@ if (!empty($recetas)) {
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
+
+                    <div class="recipe-card-body">
+                        <div class="recipe-card-title"><?= htmlspecialchars($r['titulo']) ?></div>
+                        <div class="recipe-card-meta">
+                            <span>👤 <?= htmlspecialchars($r['autor']) ?></span>
+                            <span class="recipe-card-time">⏱ <?= $r['tiempo_min'] ?> min</span>
+                        </div>
+                    </div>
                 </a>
             <?php endforeach; ?>
         <?php endif; ?>

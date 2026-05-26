@@ -135,6 +135,7 @@ $alergenos = array_filter($etiquetas, fn($e) => $e['tipo'] === 'alergeno');
                 <p class="form-section-title">Pasos de preparación</p>
                 <div class="mb-field">
                     <label class="form-label" for="pasos">Describe los pasos</label>
+                    <!--Implementar markdown para los pasos-->
                     <textarea id="pasos" name="pasos" class="form-control"
                         placeholder="Paso 1: &#10;Paso 2: " required></textarea>
                 </div>

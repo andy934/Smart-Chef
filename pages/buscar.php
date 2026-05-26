@@ -436,7 +436,7 @@ $alergenos = array_filter($etiquetas, fn($e) => $e['tipo'] === 'alergeno');
 
                 resultsGrid.innerHTML = recetas.map(r => {
                     const tags = (r.etiquetas || []).map(t =>
-                        `<span class="card-tag card-tag-${t.tipo}">${t.nombre}</span>`
+                        `<span class="card-tag card-tag-${t.tipo}">${t.tipo === 'dieta' ? '🥗' : '⚠️'} ${t.nombre}</span>`
                     ).join('');
 
                     return `
@@ -444,6 +444,7 @@ $alergenos = array_filter($etiquetas, fn($e) => $e['tipo'] === 'alergeno');
                             ${r.imagen_ruta
                                 ? `<img src="../${r.imagen_ruta}" alt="${r.titulo}" class="recipe-card-img">`
                                 : `<div class="recipe-card-placeholder">🍳</div>`}
+                            ${tags ? `<div class="card-tags">${tags}</div>` : ''}
                             <div class="recipe-card-body">
                                 <div class="recipe-card-title">${r.titulo}</div>
                                 <div class="recipe-card-meta">
@@ -451,7 +452,6 @@ $alergenos = array_filter($etiquetas, fn($e) => $e['tipo'] === 'alergeno');
                                     <span class="recipe-card-time">⏱ ${r.tiempo_min} min</span>
                                 </div>
                             </div>
-                            ${tags ? `<div class="card-tags">${tags}</div>` : ''}
                         </a>`;
                 }).join('');
 
