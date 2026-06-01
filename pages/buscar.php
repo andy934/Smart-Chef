@@ -3,7 +3,7 @@ require_once '../includes/db.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 // Cargar etiquetas para los filtros
-$etiquetas = $pdo->query('SELECT id, nombre, tipo FROM etiquetas ORDER BY tipo, nombre')->fetchAll();
+$etiquetas = $pdo->query('SELECT id, nombre, tipo FROM etiquetas ORDER BY nombre')->fetchAll();
 $dietas    = array_filter($etiquetas, fn($e) => $e['tipo'] === 'dieta');
 $alergenos = array_filter($etiquetas, fn($e) => $e['tipo'] === 'alergeno');
 ?>
